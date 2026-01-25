@@ -1,0 +1,62 @@
+{
+  "name": "bifrost",
+  "displayName": "Bifrost",
+  "icon": "images/icon.png",
+  "description": "Enhance the collaboration between Xcode and VSCode/Cursor.",
+  "version": "0.0.3",
+  "publisher": "liaoyuan",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/local/bifrost"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onCommand:bifrost.start",
+    "onCommand:bifrost.toggle",
+    "onCommand:bifrost.stop",
+    "onCommand:bifrost.xcodeRun",
+    "onCommand:bifrost.xcodeBuild"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "bifrost.start",
+        "title": "[Bifrost] Xcode Sync: Start",
+        "icon": "$(play)"
+      },
+      {
+        "command": "bifrost.stop",
+        "title": "[Bifrost] Xcode Sync: Stop",
+        "icon": "$(stop)"
+      },
+      {
+        "command": "bifrost.xcodeRun",
+        "title": "[Bifrost] Xcode: Run",
+        "icon": "$(play)"
+      },
+      {
+        "command": "bifrost.xcodeBuild",
+        "title": "[Bifrost] Xcode: Build",
+        "icon": "$(tools)"
+      }
+    ]
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "vscode:prepublish": "npm run compile",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "^20.8.10",
+    "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^2.22.0",
+    "typescript": "^5.2.2"
+  }
+}

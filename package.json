@@ -48,6 +48,14 @@
         "command": "bifrost.xcodeBuild",
         "title": "[Bifrost] Xcode: Build",
         "icon": "$(tools)"
+      },
+      {
+        "command": "bifrost.toggleXcodeToVSCode",
+        "title": "[Bifrost] Toggle: Xcode → VSCode Sync"
+      },
+      {
+        "command": "bifrost.toggleVSCodeToXcode",
+        "title": "[Bifrost] Toggle: VSCode → Xcode Sync"
       }
     ]
   },

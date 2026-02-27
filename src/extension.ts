@@ -390,6 +390,8 @@ export function activate(context: vscode.ExtensionContext): void {
   let lastVsCodePayload = "";
   let lastVsCodePayloadNormalized = "";
   let lastWorkspaceSkipAt = 0;
+  let syncXcodeToVSCode = true;
+  let syncVSCodeToXcode = true;
 
   // Status bar item
   const statusBarItem = vscode.window.createStatusBarItem(
@@ -400,6 +402,18 @@ export function activate(context: vscode.ExtensionContext): void {
   statusBarItem.text = "$(circle-slash) Bifrost";
   statusBarItem.tooltip = "Click to start Bifrost";
   statusBarItem.show();
+
+  const xToVStatusBarItem = vscode.window.createStatusBarItem(
+    vscode.StatusBarAlignment.Left,
+    99
+  );
+  xToVStatusBarItem.command = "bifrost.toggleXcodeToVSCode";
+
+  const vToXStatusBarItem = vscode.window.createStatusBarItem(
+    vscode.StatusBarAlignment.Left,
+    98
+  );
+  vToXStatusBarItem.command = "bifrost.toggleVSCodeToXcode";
 
   const xcodeRunStatusBarItem = vscode.window.createStatusBarItem(
     vscode.StatusBarAlignment.Right,
@@ -423,9 +437,27 @@ export function activate(context: vscode.ExtensionContext): void {
     if (isWatching) {
       statusBarItem.text = "$(sync~spin) Bifrost";
       statusBarItem.tooltip = "Bifrost is running. Click to stop.";
+
+      xToVStatusBarItem.text = syncXcodeToVSCode
+        ? "$(check) X→V"
+        : "$(circle-slash) X→V";
+      xToVStatusBarItem.tooltip = syncXcodeToVSCode
+        ? "Xcode→VSCode sync ON. Click to disable."
+        : "Xcode→VSCode sync OFF. Click to enable.";
+      xToVStatusBarItem.show();
+
+      vToXStatusBarItem.text = syncVSCodeToXcode
+        ? "$(check) V→X"
+        : "$(circle-slash) V→X";
+      vToXStatusBarItem.tooltip = syncVSCodeToXcode
+        ? "VSCode→Xcode sync ON. Click to disable."
+        : "VSCode→Xcode sync OFF. Click to enable.";
+      vToXStatusBarItem.show();
     } else {
       statusBarItem.text = "$(circle-slash) Bifrost";
       statusBarItem.tooltip = "Bifrost is stopped. Click to start.";
+      xToVStatusBarItem.hide();
+      vToXStatusBarItem.hide();
     }
   };
 
@@ -538,7 +570,9 @@ export function activate(context: vscode.ExtensionContext): void {
             return;
           }
 
-          // Sync to VSCode
+          if (!syncXcodeToVSCode) {
+            return;
+          }
           await syncToVSCode(vscodePath, start, end);
         }
       } finally {
@@ -550,6 +584,9 @@ export function activate(context: vscode.ExtensionContext): void {
   // Schedules a sync to Xcode for the given editor
   const scheduleSyncToXcode = (editor: vscode.TextEditor | undefined) => {
     if (!isWatching) {
+      return;
+    }
+    if (!syncVSCodeToXcode) {
       return;
     }
     if (!editor) {
@@ -585,6 +622,9 @@ export function activate(context: vscode.ExtensionContext): void {
     }
     pendingXcodeSync = setTimeout(() => {
       void (async () => {
+        if (!syncVSCodeToXcode) {
+          return;
+        }
         if (!vscode.window.state.focused) {
           logInfo("[VSCode -> Xcode] Skip sync: lost focus before sending.");
           return;
@@ -723,6 +763,38 @@ export function activate(context: vscode.ExtensionContext): void {
     }
   );
 
+  const toggleXcodeToVSCodeCommand = vscode.commands.registerCommand(
+    "bifrost.toggleXcodeToVSCode",
+    () => {
+      syncXcodeToVSCode = !syncXcodeToVSCode;
+      updateUI();
+      logInfo(
+        `[Bifrost] Xcode→VSCode sync ${
+          syncXcodeToVSCode ? "enabled" : "disabled"
+        }.`
+      );
+      showToast(
+        `Xcode→VSCode sync ${syncXcodeToVSCode ? "enabled" : "disabled"}.`
+      );
+    }
+  );
+
+  const toggleVSCodeToXcodeCommand = vscode.commands.registerCommand(
+    "bifrost.toggleVSCodeToXcode",
+    () => {
+      syncVSCodeToXcode = !syncVSCodeToXcode;
+      updateUI();
+      logInfo(
+        `[Bifrost] VSCode→Xcode sync ${
+          syncVSCodeToXcode ? "enabled" : "disabled"
+        }.`
+      );
+      showToast(
+        `VSCode→Xcode sync ${syncVSCodeToXcode ? "enabled" : "disabled"}.`
+      );
+    }
+  );
+
   // Xcode Run
   const runCommand = vscode.commands.registerCommand("bifrost.xcodeRun", () => {
     runXcodeScript(
@@ -766,11 +838,15 @@ export function activate(context: vscode.ExtensionContext): void {
 
   context.subscriptions.push(
     statusBarItem,
+    xToVStatusBarItem,
+    vToXStatusBarItem,
     xcodeRunStatusBarItem,
     xcodeBuildStatusBarItem,
     startCommand,
     stopCommand,
     toggleCommand,
+    toggleXcodeToVSCodeCommand,
+    toggleVSCodeToXcodeCommand,
     runCommand,
     buildCommand,
     selectionListener,

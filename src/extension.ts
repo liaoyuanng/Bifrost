@@ -60,6 +60,7 @@ function escapeAppleScriptString(value: string): string {
 
 function buildQueryXcodeSelectionScript(): string {
   return [
+    'if application "Xcode" is not running then return "' + NO_DOC + '"',
     'tell application "Xcode"',
     "try",
     'if (count of windows) is 0 then return "' + NO_DOC + '"',
@@ -99,6 +100,7 @@ function buildSetXcodeSelectionScript(
 ): string {
   const escapedPath = escapeAppleScriptString(filePath);
   return [
+    'if application "Xcode" is not running then return',
     `set filePath to "${escapedPath}"`,
     'tell application "Xcode"',
     "set doc to missing value",
@@ -168,6 +170,7 @@ async function queryXcodeSelection(): Promise<{
 
 function buildXcodeWorkspacesScript(): string {
   return [
+    'if application "Xcode" is not running then return ""',
     'tell application "Xcode"',
     "try",
     'if (count of workspace documents) is 0 then return ""',

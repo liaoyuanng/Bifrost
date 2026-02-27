@@ -1,13 +1,17 @@
 {
-  "name": "bifrost",
-  "displayName": "Bifrost",
+  "name": "bifrost-works-with-xcode",
+  "displayName": "Bifrost - Works with Xcode",
   "icon": "images/icon.png",
-  "description": "Enhance the collaboration between Xcode and VSCode/Cursor.",
+  "description": "Enhance collaboration between Xcode and VSCode/Cursor.",
   "version": "0.0.3",
   "publisher": "liaoyuan",
+  "homepage": "https://github.com/liaoyuanng/bifrost",
+  "bugs": {
+    "url": "https://github.com/liaoyuanng/bifrost/issues"
+  },
   "repository": {
     "type": "git",
-    "url": "https://github.com/local/bifrost"
+    "url": "https://github.com/liaoyuanng/bifrost"
   },
   "engines": {
     "vscode": "^1.85.0"

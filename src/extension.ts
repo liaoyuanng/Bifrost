@@ -23,7 +23,9 @@ const logInfo = (message: string): void => {
 const logError = (message: string, err?: unknown): void => {
   if (outputChannel) {
     const detail =
-      err === undefined ? "" : ` ${err instanceof Error ? err.message : String(err)}`;
+      err === undefined
+        ? ""
+        : ` ${err instanceof Error ? err.message : String(err)}`;
     outputChannel.appendLine(`${message}${detail}`);
   } else if (err === undefined) {
     console.error(message);
@@ -39,7 +41,7 @@ const showToast = (message: string, timeoutMs = DEFAULT_TOAST_MS): void => {
 async function runXcodeScript(
   script: string,
   successMessage: string,
-  errorMessage: string,
+  errorMessage: string
 ): Promise<void> {
   try {
     await execFileAsync("/usr/bin/osascript", ["-e", script]);
@@ -47,7 +49,7 @@ async function runXcodeScript(
     showToast(successMessage);
   } catch (err) {
     const detail = err instanceof Error ? err.message : String(err);
-    logError(`[Xcode][error] ${errorMessage}: ${detail}`);
+    logError(`[Xcode][error][Run] ${errorMessage}: ${detail}`);
     vscode.window.showErrorMessage(`${errorMessage}. ${detail}`);
   }
 }
@@ -93,7 +95,7 @@ function buildQueryXcodeSelectionScript(): string {
 function buildSetXcodeSelectionScript(
   filePath: string,
   start: number,
-  end: number,
+  end: number
 ): string {
   const escapedPath = escapeAppleScriptString(filePath);
   return [
@@ -150,6 +152,7 @@ async function queryXcodeSelection(): Promise<{
         ? String((err as { stderr?: unknown }).stderr ?? "")
         : "";
     const combined = `${message}\n${stderr}`.toLowerCase();
+    const combinedRaw = `${message}\n${stderr}`;
     const isPermission =
       combined.includes("not authorized") ||
       combined.includes("not authorised") ||
@@ -205,11 +208,14 @@ async function queryXcodeWorkspaces(): Promise<{
         ? String((err as { stderr?: unknown }).stderr ?? "")
         : "";
     const combined = `${message}\n${stderr}`.toLowerCase();
+    const combinedRaw = `${message}\n${stderr}`;
     const isPermission =
       combined.includes("not authorized") ||
       combined.includes("not authorised") ||
       combined.includes("not permitted") ||
-      combined.includes("1743");
+      combined.includes("1743") ||
+      combinedRaw.includes("未获得授权") ||
+      combinedRaw.includes("没有获得授权");
     return {
       value: "",
       error: message || stderr || "osascript failed",
@@ -234,7 +240,7 @@ function parseXcodeWorkspacePaths(value: string): string[] {
 }
 
 function getWorkspaceFolderForPath(
-  filePath: string,
+  filePath: string
 ): vscode.WorkspaceFolder | undefined {
   return vscode.workspace.getWorkspaceFolder(vscode.Uri.file(filePath));
 }
@@ -250,7 +256,7 @@ async function normalizePathForCompare(filePath: string): Promise<string> {
 
 async function mapPathViaWorkspaceSymlink(
   filePath: string,
-  workspaceRoot: string,
+  workspaceRoot: string
 ): Promise<string | null> {
   try {
     const entries = await fs.readdir(workspaceRoot, { withFileTypes: true });
@@ -278,7 +284,7 @@ async function mapPathViaWorkspaceSymlink(
 
 async function isPathWithinRoot(
   targetPath: string,
-  rootPath: string,
+  rootPath: string
 ): Promise<boolean> {
   const [normalizedFile, normalizedRoot] = await Promise.all([
     normalizePathForCompare(targetPath),
@@ -294,7 +300,7 @@ async function isPathWithinRoot(
 }
 
 async function getWorkspaceFolderForPathNormalized(
-  filePath: string,
+  filePath: string
 ): Promise<vscode.WorkspaceFolder | undefined> {
   const directMatch = getWorkspaceFolderForPath(filePath);
   if (directMatch) {
@@ -323,7 +329,7 @@ async function getWorkspaceFolderForPathNormalized(
 async function syncToVSCode(
   path: string,
   start: number,
-  end: number,
+  end: number
 ): Promise<void> {
   try {
     const uri = vscode.Uri.file(path);
@@ -347,7 +353,7 @@ async function syncToVSCode(
     editor.selection = selection;
     editor.revealRange(
       selection,
-      vscode.TextEditorRevealType.InCenterIfOutsideViewport,
+      vscode.TextEditorRevealType.InCenterIfOutsideViewport
     );
     logInfo(`[Xcode -> VSCode] Synced selection ${path} ${start}-${end}`);
   } catch (err) {
@@ -358,7 +364,7 @@ async function syncToVSCode(
 async function syncToXcode(
   path: string,
   start: number,
-  end: number,
+  end: number
 ): Promise<void> {
   const script = buildSetXcodeSelectionScript(path, start, end);
   try {
@@ -388,7 +394,7 @@ export function activate(context: vscode.ExtensionContext): void {
   // Status bar item
   const statusBarItem = vscode.window.createStatusBarItem(
     vscode.StatusBarAlignment.Left,
-    100,
+    100
   );
   statusBarItem.command = "bifrost.toggle";
   statusBarItem.text = "$(circle-slash) Bifrost";
@@ -397,7 +403,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
   const xcodeRunStatusBarItem = vscode.window.createStatusBarItem(
     vscode.StatusBarAlignment.Right,
-    200,
+    200
   );
   xcodeRunStatusBarItem.command = "bifrost.xcodeRun";
   xcodeRunStatusBarItem.text = "$(play) Xcode Run";
@@ -406,7 +412,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
   const xcodeBuildStatusBarItem = vscode.window.createStatusBarItem(
     vscode.StatusBarAlignment.Right,
-    199,
+    199
   );
   xcodeBuildStatusBarItem.command = "bifrost.xcodeBuild";
   xcodeBuildStatusBarItem.text = "$(tools) Xcode Build";
@@ -426,6 +432,7 @@ export function activate(context: vscode.ExtensionContext): void {
   // Polls Xcode for selection changes and syncs to VSCode
   const startPolling = () => {
     const intervalMs = 500;
+    let isPolling = false;
     return setInterval(async () => {
       if (!isWatching) {
         return;
@@ -433,101 +440,109 @@ export function activate(context: vscode.ExtensionContext): void {
       if (vscode.window.state.focused) {
         return;
       }
-
-      const { value, error, errorKind } = await queryXcodeSelection();
-
-      if (error) {
-        if (error !== lastError || errorKind !== lastErrorKind) {
-          lastError = error;
-          lastErrorKind = errorKind;
-          if (errorKind === "permission") {
-            const message =
-              "Bifrost is not authorized to control Xcode. Enable it in System Settings > Privacy & Security > Automation.";
-            logInfo(`[Xcode][permission] ${message}`);
-            vscode.window
-              .showWarningMessage(message, "Open System Settings")
-              .then((selection) => {
-                if (selection === "Open System Settings") {
-                  execFileAsync("/usr/bin/open", [
-                    "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation",
-                  ]);
-                }
-              });
-          } else {
-            logInfo(`[Xcode][error] ${error}`);
-          }
-        }
+      if (isPolling) {
         return;
       }
+      isPolling = true;
+      try {
+        const { value, error, errorKind } = await queryXcodeSelection();
 
-      if (value === NO_DOC) {
-        const now = Date.now();
-        if (now - lastEmptyAt > 5000) {
-          lastEmptyAt = now;
-          logInfo("[Xcode] No active source document.");
-        }
-        return;
-      }
-
-      if (value === NO_RANGE) {
-        const now = Date.now();
-        if (now - lastEmptyAt > 5000) {
-          lastEmptyAt = now;
-          logInfo("[Xcode] No selection range available.");
-        }
-        return;
-      }
-
-      if (value.startsWith(SCRIPT_ERROR_PREFIX)) {
-        const errMsg = value.slice(SCRIPT_ERROR_PREFIX.length).trim();
-        if (errMsg !== lastError) {
-          lastError = errMsg;
-          lastErrorKind = "osascript";
-          logInfo(`[Xcode][error] ${errMsg || "AppleScript error"}`);
-        }
-        return;
-      }
-
-      lastError = "";
-      lastErrorKind = null;
-      if (value !== lastValue) {
-        lastValue = value;
-        const [path, startStr, endStr] = value.split("|");
-        const start = parseInt(startStr, 10);
-        const end = parseInt(endStr, 10);
-        logInfo(`[Xcode] ${path} ${start}-${end}`);
-
-        const normalizedPath = await normalizePathForCompare(path);
-        let vscodePath = normalizedPath;
-        let workspaceFolder =
-          await getWorkspaceFolderForPathNormalized(normalizedPath);
-        if (!workspaceFolder) {
-          const folders = vscode.workspace.workspaceFolders ?? [];
-          for (const folder of folders) {
-            const mapped = await mapPathViaWorkspaceSymlink(
-              normalizedPath,
-              folder.uri.fsPath,
-            );
-            if (mapped) {
-              vscodePath = mapped;
-              workspaceFolder = folder;
-              break;
+        if (error) {
+          if (error !== lastError || errorKind !== lastErrorKind) {
+            lastError = error;
+            lastErrorKind = errorKind;
+            if (errorKind === "permission") {
+              const message =
+                "Bifrost is not authorized to control Xcode. Enable it in System Settings > Privacy & Security > Automation.";
+              logInfo(`[Xcode][permission] ${message}`);
+              vscode.window
+                .showWarningMessage(message, "Open System Settings")
+                .then((selection) => {
+                  if (selection === "Open System Settings") {
+                    execFileAsync("/usr/bin/open", [
+                      "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation",
+                    ]);
+                  }
+                });
+            } else {
+              logInfo(`[Xcode][error] ${error}`);
             }
-          }
-        }
-        if (!workspaceFolder) {
-          const now = Date.now();
-          if (now - lastWorkspaceSkipAt > 5000) {
-            lastWorkspaceSkipAt = now;
-            logInfo(
-              "[Xcode -> VSCode] Skip sync: Xcode file not in any VSCode workspace.",
-            );
           }
           return;
         }
 
-        // Sync to VSCode
-        await syncToVSCode(vscodePath, start, end);
+        if (value === NO_DOC) {
+          const now = Date.now();
+          if (now - lastEmptyAt > 5000) {
+            lastEmptyAt = now;
+            logInfo("[Xcode] No active source document.");
+          }
+          return;
+        }
+
+        if (value === NO_RANGE) {
+          const now = Date.now();
+          if (now - lastEmptyAt > 5000) {
+            lastEmptyAt = now;
+            logInfo("[Xcode] No selection range available.");
+          }
+          return;
+        }
+
+        if (value.startsWith(SCRIPT_ERROR_PREFIX)) {
+          const errMsg = value.slice(SCRIPT_ERROR_PREFIX.length).trim();
+          if (errMsg !== lastError) {
+            lastError = errMsg;
+            lastErrorKind = "osascript";
+            logInfo(`[Xcode][error] ${errMsg || "AppleScript error"}`);
+          }
+          return;
+        }
+
+        lastError = "";
+        lastErrorKind = null;
+        if (value !== lastValue) {
+          lastValue = value;
+          const [path, startStr, endStr] = value.split("|");
+          const start = parseInt(startStr, 10);
+          const end = parseInt(endStr, 10);
+          logInfo(`[Xcode] ${path} ${start}-${end}`);
+
+          const normalizedPath = await normalizePathForCompare(path);
+          let vscodePath = normalizedPath;
+          let workspaceFolder = await getWorkspaceFolderForPathNormalized(
+            normalizedPath
+          );
+          if (!workspaceFolder) {
+            const folders = vscode.workspace.workspaceFolders ?? [];
+            for (const folder of folders) {
+              const mapped = await mapPathViaWorkspaceSymlink(
+                normalizedPath,
+                folder.uri.fsPath
+              );
+              if (mapped) {
+                vscodePath = mapped;
+                workspaceFolder = folder;
+                break;
+              }
+            }
+          }
+          if (!workspaceFolder) {
+            const now = Date.now();
+            if (now - lastWorkspaceSkipAt > 5000) {
+              lastWorkspaceSkipAt = now;
+              logInfo(
+                "[Xcode -> VSCode] Skip sync: Xcode file not in any VSCode workspace."
+              );
+            }
+            return;
+          }
+
+          // Sync to VSCode
+          await syncToVSCode(vscodePath, start, end);
+        }
+      } finally {
+        isPolling = false;
       }
     }, intervalMs);
   };
@@ -571,16 +586,14 @@ export function activate(context: vscode.ExtensionContext): void {
     pendingXcodeSync = setTimeout(() => {
       void (async () => {
         if (!vscode.window.state.focused) {
-          logInfo(
-            "[VSCode -> Xcode] Skip sync: lost focus before sending.",
-          );
+          logInfo("[VSCode -> Xcode] Skip sync: lost focus before sending.");
           return;
         }
 
         const vsWorkspaceFolder = getWorkspaceFolderForPath(filePath);
         if (!vsWorkspaceFolder) {
           logInfo(
-            "[VSCode -> Xcode] Skip sync: file not in any VSCode workspace.",
+            "[VSCode -> Xcode] Skip sync: file not in any VSCode workspace."
           );
           return;
         }
@@ -592,32 +605,30 @@ export function activate(context: vscode.ExtensionContext): void {
         }
         lastVsCodePayloadNormalized = normalizedPayload;
         logInfo(
-          `[VSCode -> Xcode][debug] VSCode workspace: ${vsWorkspaceFolder.uri.fsPath}`,
+          `[VSCode -> Xcode][debug] VSCode workspace: ${vsWorkspaceFolder.uri.fsPath}`
         );
 
         const { value, error, errorKind } = await queryXcodeWorkspaces();
         if (error) {
           if (errorKind === "permission") {
             logInfo(
-              "[Xcode][permission] Missing permission to read Xcode workspaces.",
+              "[Xcode][permission] Missing permission to read Xcode workspaces."
             );
           } else {
-            logInfo(`[Xcode][error] ${error}`);
+            logInfo(`[Xcode][error][Workspaces] ${error}`);
           }
           return;
         }
         if (!value.trim() || value.startsWith(SCRIPT_ERROR_PREFIX)) {
-          logInfo(
-            "[VSCode -> Xcode] Skip sync: Xcode has no open workspace.",
-          );
+          logInfo("[VSCode -> Xcode] Skip sync: Xcode has no open workspace.");
           return;
         }
 
         const workspacePaths = parseXcodeWorkspacePaths(value);
         logInfo(
           `[VSCode -> Xcode][debug] Xcode workspaces: ${workspacePaths.join(
-            ", ",
-          )}`,
+            ", "
+          )}`
         );
         const vsRootPath = vsWorkspaceFolder.uri.fsPath;
         let hasMatch = false;
@@ -627,7 +638,9 @@ export function activate(context: vscode.ExtensionContext): void {
             (await isPathWithinRoot(filePath, rootPath)) ||
             (await isPathWithinRoot(rootPath, vsRootPath));
           logInfo(
-            `[VSCode -> Xcode][debug] Check ${rootPath} -> ${isMatch ? "match" : "no"}`,
+            `[VSCode -> Xcode][debug] Check ${rootPath} -> ${
+              isMatch ? "match" : "no"
+            }`
           );
           if (isMatch) {
             hasMatch = true;
@@ -636,7 +649,7 @@ export function activate(context: vscode.ExtensionContext): void {
         }
         if (!hasMatch) {
           logInfo(
-            "[VSCode -> Xcode] Skip sync: Xcode workspace does not match VSCode.",
+            "[VSCode -> Xcode] Skip sync: Xcode workspace does not match VSCode."
           );
           return;
         }
@@ -649,13 +662,13 @@ export function activate(context: vscode.ExtensionContext): void {
   const selectionListener = vscode.window.onDidChangeTextEditorSelection(
     (event) => {
       scheduleSyncToXcode(event.textEditor);
-    },
+    }
   );
 
   const activeEditorListener = vscode.window.onDidChangeActiveTextEditor(
     (editor) => {
       scheduleSyncToXcode(editor);
-    },
+    }
   );
 
   const startCommand = vscode.commands.registerCommand("bifrost.start", () => {
@@ -707,7 +720,7 @@ export function activate(context: vscode.ExtensionContext): void {
       } else {
         vscode.commands.executeCommand("bifrost.start");
       }
-    },
+    }
   );
 
   // Xcode Run
@@ -725,7 +738,7 @@ export function activate(context: vscode.ExtensionContext): void {
         "tell application frontApp to activate",
       ].join("\n"),
       "Bifrost: Xcode Run triggered!",
-      "Failed to trigger Xcode Run",
+      "Failed to trigger Xcode Run"
     );
   });
 
@@ -746,9 +759,9 @@ export function activate(context: vscode.ExtensionContext): void {
           "tell application frontApp to activate",
         ].join("\n"),
         "Bifrost: Xcode Build triggered!",
-        "Failed to trigger Xcode Build",
+        "Failed to trigger Xcode Build"
       );
-    },
+    }
   );
 
   context.subscriptions.push(
@@ -771,7 +784,7 @@ export function activate(context: vscode.ExtensionContext): void {
           clearTimeout(pendingXcodeSync);
         }
       },
-    },
+    }
   );
 }
 
